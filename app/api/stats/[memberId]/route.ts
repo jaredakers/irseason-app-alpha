@@ -5,9 +5,9 @@ import { MemberStats } from "../../../../types/iracing";
 
 export async function GET(
   request: Request,
-  { params }: { params: { memberId: string } }
+  context: { params: { memberId: string } }
 ) {
-  const memberId = params.memberId;
+  const { memberId } = context.params;
 
   if (!memberId) {
     return NextResponse.json(

@@ -6,35 +6,37 @@ const BASE_URL = "https://members-ng.iracing.com";
 
 export async function authenticate(): Promise<string> {
   try {
-    const response = await axios.post(
-      `${BASE_URL}/auth`,
-      {
+    const response = await axios({
+      method: "POST",
+      url: `${BASE_URL}/auth`,
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      data: {
         email: process.env.IRACING_USERNAME,
         password: process.env.IRACING_PASSWORD,
       },
-      {
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        withCredentials: true,
-      }
-    );
+    });
 
     const { authcode } = response.data;
     if (!authcode) {
+      console.error("Response data:", response.data);
       throw new Error("No authcode received in response");
     }
 
     const cookie = response.headers["set-cookie"]?.[0];
     if (!cookie) {
+      console.error("Response headers:", response.headers);
       throw new Error("No authentication cookie received");
     }
 
-    // Construct authtoken cookie similar to working code
-    const authTokenCookie = `authtoken_members=${JSON.stringify({
-      authtoken: { authcode, email: process.env.IRACING_USERNAME },
-    })}`;
+    // Mimic working code's authtoken_members cookie
+    const authTokenCookie = `authtoken_members=${encodeURIComponent(
+      JSON.stringify({
+        authtoken: { authcode, email: process.env.IRACING_USERNAME },
+      })
+    )}`;
 
     console.log("Authentication successful, cookie:", authTokenCookie);
     return authTokenCookie;
