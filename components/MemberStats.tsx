@@ -29,7 +29,7 @@ export default function MemberStats({ memberId }: MemberStatsProps) {
         const text = await response.text();
         console.log("Raw API response:", text);
         if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${text}`);
+          throw new Error(JSON.parse(text).error || `HTTP ${response.status}`);
         }
         const data = JSON.parse(text);
         console.log("Parsed stats:", data);

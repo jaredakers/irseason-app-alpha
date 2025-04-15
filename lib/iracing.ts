@@ -19,10 +19,10 @@ export async function authenticate(): Promise<string> {
       },
     });
 
-    const { authcode } = response.data;
-    if (!authcode) {
-      console.error("Response data:", response.data);
-      throw new Error("No authcode received in response");
+    const { authcode, message } = response.data;
+    if (!authcode || authcode === 0) {
+      console.error("Auth response:", response.data);
+      throw new Error(message || "No valid authcode received");
     }
 
     const cookie = response.headers["set-cookie"]?.[0];
@@ -31,7 +31,7 @@ export async function authenticate(): Promise<string> {
       throw new Error("No authentication cookie received");
     }
 
-    // Mimic working code's authtoken_members cookie
+    // Build authtoken_members cookie
     const authTokenCookie = `authtoken_members=${encodeURIComponent(
       JSON.stringify({
         authtoken: { authcode, email: process.env.IRACING_USERNAME },
@@ -47,7 +47,9 @@ export async function authenticate(): Promise<string> {
       error.response?.status,
       error.response?.data
     );
-    throw new Error("Failed to authenticate with iRacing");
+    throw new Error(
+      error.response?.data?.message || "Failed to authenticate with iRacing"
+    );
   }
 }
 

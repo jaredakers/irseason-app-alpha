@@ -3,11 +3,9 @@ import { NextResponse } from "next/server";
 import { getMemberStats, authenticate } from "../../../../lib/iracing";
 import { MemberStats } from "../../../../types/iracing";
 
-export async function GET(
-  request: Request,
-  context: { params: { memberId: string } }
-) {
-  const { memberId } = context.params;
+export async function GET(request: Request) {
+  const url = new URL(request.url);
+  const memberId = url.pathname.split("/").pop() || "";
 
   if (!memberId) {
     return NextResponse.json(
