@@ -5,15 +5,48 @@ import { MemberStats, RaceResult } from "../types/iracing";
 const BASE_URL = "https://members-ng.iracing.com";
 
 export async function authenticate(): Promise<string> {
-  const response = await axios.post(
-    `${BASE_URL}/auth/login2`,
-    {
-      email: process.env.IRACING_USERNAME,
-      password: process.env.IRACING_PASSWORD,
-    },
-    { withCredentials: true }
-  );
-  return response.headers["set-cookie"]?.[0] || "";
+  try {
+    const response = await axios.post(
+      `${BASE_URL}/auth`,
+      {
+        email: process.env.IRACING_USERNAME,
+        password: process.env.IRACING_PASSWORD,
+      },
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        withCredentials: true,
+      }
+    );
+
+    const { authcode } = response.data;
+    if (!authcode) {
+      throw new Error("No authcode received in response");
+    }
+
+    const cookie = response.headers["set-cookie"]?.[0];
+    if (!cookie) {
+      throw new Error("No authentication cookie received");
+    }
+
+    // Construct authtoken cookie similar to working code
+    const authTokenCookie = `authtoken_members=${JSON.stringify({
+      authtoken: { authcode, email: process.env.IRACING_USERNAME },
+    })}`;
+
+    console.log("Authentication successful, cookie:", authTokenCookie);
+    return authTokenCookie;
+  } catch (error) {
+    console.error(
+      "Authentication error:",
+      error.message,
+      error.response?.status,
+      error.response?.data
+    );
+    throw new Error("Failed to authenticate with iRacing");
+  }
 }
 
 export async function getMemberStats(
@@ -21,7 +54,7 @@ export async function getMemberStats(
   cookie: string
 ): Promise<MemberStats> {
   try {
-    // Step 1: Fetch initial data from /data/stats/member_recent_races
+    // Step 1: Fetch initial data
     const initialResponse = await axios.get(
       `${BASE_URL}/data/stats/member_recent_races?cust_id=${memberId}`,
       {
@@ -31,17 +64,21 @@ export async function getMemberStats(
 
     const { link } = initialResponse.data;
     if (!link) {
-      throw new Error("No link provided in initial response");
+      console.warn("No link in initial response:", initialResponse.data);
+      return { recentRaces: [] };
     }
 
-    // Step 2: Fetch the linked JSON data
+    // Step 2: Fetch linked data
     const linkResponse = await axios.get(link);
     const linkedData = linkResponse.data;
 
-    // Step 3: Parse races data
+    // Log for debugging
+    console.log("Linked data:", linkedData);
+
+    // Step 3: Parse races
     const recentRaces: RaceResult[] =
       linkedData.races?.map((race: any) => ({
-        sessionId: race.subsession_id || 0, // Use subsession_id or fallback
+        sessionId: race.subsession_id || 0,
         seriesName: race.series_name || "Unknown Series",
         track: { trackName: race.track?.track_name || "Unknown Track" },
         winnerName: race.winner_name || "Unknown",
@@ -55,7 +92,11 @@ export async function getMemberStats(
 
     return { recentRaces };
   } catch (error) {
-    console.error("Error fetching member stats:", error.message);
-    return { recentRaces: [] }; // Return empty array on error
+    console.error(
+      "Error fetching member stats:",
+      error.message,
+      error.response?.data
+    );
+    throw new Error("Failed to fetch race data");
   }
 }

@@ -11,27 +11,38 @@ interface MemberStatsProps {
 export default function MemberStats({ memberId }: MemberStatsProps) {
   const [stats, setStats] = useState<RaceResult[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!memberId) return;
+    if (!memberId) {
+      setStats([]);
+      setError(null);
+      return;
+    }
 
     // Fetch initial stats
     const fetchStats = async () => {
+      setLoading(true);
+      setError(null);
       try {
         const response = await fetch(`/api/stats/${memberId}`);
+        const text = await response.text();
+        console.log("Raw API response:", text);
         if (!response.ok) {
-          throw new Error("Failed to fetch stats");
+          throw new Error(`HTTP ${response.status}: ${text}`);
         }
-        const data = await response.json();
-        setStats(data.recentRaces);
-        if (data.recentRaces.length === 0) {
+        const data = JSON.parse(text);
+        console.log("Parsed stats:", data);
+        setStats(data.recentRaces || []);
+        if (!data.recentRaces?.length) {
           setError("No races found for this member.");
-        } else {
-          setError(null);
         }
       } catch (err) {
-        setError("Error fetching stats. Please try again.");
-        console.error(err);
+        setError(err.message || "Error fetching stats. Please try again.");
+        console.error("Fetch error:", err);
+        setStats([]);
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -39,25 +50,33 @@ export default function MemberStats({ memberId }: MemberStatsProps) {
 
     // WebSocket for real-time updates
     const ws = new WebSocket("ws://localhost:3000/api/ws");
-    ws.onopen = () => ws.send(JSON.stringify({ memberId }));
+    ws.onopen = () => {
+      console.log("WebSocket connected for memberId:", memberId);
+      ws.send(JSON.stringify({ memberId }));
+    };
     ws.onmessage = (event) => {
       const newStats = JSON.parse(event.data) as RaceResult[];
+      console.log("WebSocket stats:", newStats);
       setStats((prev) => [...prev, ...newStats]);
-      setError(newStats.length === 0 ? "No new races found." : null);
+      setError(newStats.length ? null : "No new races found.");
+    };
+    ws.onerror = (err) => {
+      console.error("WebSocket error:", err);
+      setError("Real-time updates unavailable.");
     };
 
-    return () => ws.close();
+    return () => {
+      ws.close();
+    };
   }, [memberId]);
 
   return (
     <div>
       <h2 className="text-xl font-bold mb-2">Recent Races</h2>
+      {loading && <p>Loading...</p>}
       {error && <p className="text-red-500">{error}</p>}
-      {stats.length === 0 && !error ? (
-        <p>Loading...</p>
-      ) : stats.length === 0 ? (
-        <p>No races found.</p>
-      ) : (
+      {!loading && !error && stats.length === 0 && <p>No races found.</p>}
+      {stats.length > 0 && (
         <table className="w-full border-collapse">
           <thead>
             <tr>

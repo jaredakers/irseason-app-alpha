@@ -9,8 +9,10 @@ export async function GET(req: NextRequest) {
     socket.server.wss = wss;
 
     wss.on("connection", async (ws) => {
+      console.log("New WebSocket connection");
       const cookie = await authenticate();
       const pollStats = async (memberId: string) => {
+        console.log(`Polling stats for ${memberId}`);
         const stats = await getMemberStats(memberId, cookie);
         ws.send(JSON.stringify(stats.recentRaces));
       };
