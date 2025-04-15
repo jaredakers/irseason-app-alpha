@@ -38,7 +38,10 @@ export default function MemberStats({ memberId }: MemberStatsProps) {
           setError("No races found for this member.");
         }
       } catch (err) {
-        setError(err.message || "Error fetching stats. Please try again.");
+        setError(
+          err.message ||
+            "Error fetching stats. Please check credentials or try again."
+        );
         console.error("Fetch error:", err);
         setStats([]);
       } finally {
@@ -49,24 +52,43 @@ export default function MemberStats({ memberId }: MemberStatsProps) {
     fetchStats();
 
     // WebSocket for real-time updates
-    const ws = new WebSocket("ws://localhost:3000/api/ws");
-    ws.onopen = () => {
-      console.log("WebSocket connected for memberId:", memberId);
-      ws.send(JSON.stringify({ memberId }));
-    };
-    ws.onmessage = (event) => {
-      const newStats = JSON.parse(event.data) as RaceResult[];
-      console.log("WebSocket stats:", newStats);
-      setStats((prev) => [...prev, ...newStats]);
-      setError(newStats.length ? null : "No new races found.");
-    };
-    ws.onerror = (err) => {
-      console.error("WebSocket error:", err);
-      setError("Real-time updates unavailable.");
+    let ws: WebSocket | null = null;
+    const connectWebSocket = () => {
+      ws = new WebSocket("ws://localhost:3000/api/ws");
+      ws.onopen = () => {
+        console.log("WebSocket connected for memberId:", memberId);
+        ws?.send(JSON.stringify({ memberId }));
+        setError(null); // Clear WebSocket error on connect
+      };
+      ws.onmessage = (event) => {
+        try {
+          const newStats = JSON.parse(event.data);
+          console.log("WebSocket stats:", newStats);
+          if (newStats.error) {
+            setError(newStats.error);
+          } else {
+            setStats((prev) => [...prev, ...(newStats || [])]);
+            setError(newStats.length ? null : "No new races found.");
+          }
+        } catch (err) {
+          console.error("WebSocket parse error:", err);
+          setError("Invalid WebSocket data received.");
+        }
+      };
+      ws.onerror = (err) => {
+        console.error("WebSocket error:", err);
+        setError("Real-time updates unavailable. Retrying...");
+      };
+      ws.onclose = () => {
+        console.log("WebSocket closed");
+        setTimeout(connectWebSocket, 5000);
+      };
     };
 
+    connectWebSocket();
+
     return () => {
-      ws.close();
+      ws?.close();
     };
   }, [memberId]);
 

@@ -1,7 +1,6 @@
 // app/api/stats/[memberId]/route.ts
 import { NextResponse } from "next/server";
 import { getMemberStats, authenticate } from "../../../../lib/iracing";
-import { MemberStats } from "../../../../types/iracing";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -21,7 +20,10 @@ export async function GET(request: Request) {
   } catch (error) {
     console.error("API error:", error.message);
     return NextResponse.json(
-      { error: "Failed to fetch stats. Please try again later." },
+      {
+        error:
+          error.message || "Failed to fetch stats. Please try again later.",
+      },
       { status: 500 }
     );
   }

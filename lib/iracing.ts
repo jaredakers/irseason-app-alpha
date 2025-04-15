@@ -6,6 +6,12 @@ const BASE_URL = "https://members-ng.iracing.com";
 
 export async function authenticate(): Promise<string> {
   try {
+    if (!process.env.IRACING_USERNAME || !process.env.IRACING_PASSWORD) {
+      throw new Error(
+        "Missing IRACING_USERNAME or IRACING_PASSWORD in environment"
+      );
+    }
+
     const response = await axios({
       method: "POST",
       url: `${BASE_URL}/auth`,
@@ -31,7 +37,6 @@ export async function authenticate(): Promise<string> {
       throw new Error("No authentication cookie received");
     }
 
-    // Build authtoken_members cookie
     const authTokenCookie = `authtoken_members=${encodeURIComponent(
       JSON.stringify({
         authtoken: { authcode, email: process.env.IRACING_USERNAME },
@@ -47,9 +52,7 @@ export async function authenticate(): Promise<string> {
       error.response?.status,
       error.response?.data
     );
-    throw new Error(
-      error.response?.data?.message || "Failed to authenticate with iRacing"
-    );
+    throw error;
   }
 }
 
@@ -58,7 +61,6 @@ export async function getMemberStats(
   cookie: string
 ): Promise<MemberStats> {
   try {
-    // Step 1: Fetch initial data
     const initialResponse = await axios.get(
       `${BASE_URL}/data/stats/member_recent_races?cust_id=${memberId}`,
       {
@@ -72,14 +74,11 @@ export async function getMemberStats(
       return { recentRaces: [] };
     }
 
-    // Step 2: Fetch linked data
     const linkResponse = await axios.get(link);
     const linkedData = linkResponse.data;
 
-    // Log for debugging
     console.log("Linked data:", linkedData);
 
-    // Step 3: Parse races
     const recentRaces: RaceResult[] =
       linkedData.races?.map((race: any) => ({
         sessionId: race.subsession_id || 0,
